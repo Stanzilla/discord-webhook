@@ -29,15 +29,6 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -133,71 +124,65 @@ function parseMapFromParameters(parameters, inputObjectKey = '') {
     }
     return parameterMap;
 }
-function handleResponse(response) {
-    return __awaiter(this, void 0, void 0, function* () {
-        core.info(`Webhook returned ${response.statusCode} with message: ${response.result}. Please see discord documentation at https://discord.com/developers/docs/resources/webhook#execute-webhook for more information`);
-        if (response.statusCode >= 400) {
-            core.error('Discord Webhook Action failed to execute webhook. Please see logs above for details. Error printed below:');
-            core.error(JSON.stringify(response));
-        }
-    });
+async function handleResponse(response) {
+    core.info(`Webhook returned ${response.statusCode} with message: ${response.result}. Please see discord documentation at https://discord.com/developers/docs/resources/webhook#execute-webhook for more information`);
+    if (response.statusCode >= 400) {
+        core.error('Discord Webhook Action failed to execute webhook. Please see logs above for details. Error printed below:');
+        core.error(JSON.stringify(response));
+    }
 }
-function executeWebhook() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const client = new http_client_1.HttpClient();
-        let webhookUrl = core.getInput(WEBHOOK_URL);
-        const filename = core.getInput(FILENAME);
-        const threadId = core.getInput(THREAD_ID);
-        const threadName = core.getInput(THREAD_NAME);
-        const flags = core.getInput(FLAGS);
-        const payload = createPayload();
-        if (threadId !== '') {
-            webhookUrl = `${webhookUrl}?thread_id=${threadId}`;
+async function executeWebhook() {
+    const client = new http_client_1.HttpClient();
+    let webhookUrl = core.getInput(WEBHOOK_URL);
+    const filename = core.getInput(FILENAME);
+    const threadId = core.getInput(THREAD_ID);
+    const threadName = core.getInput(THREAD_NAME);
+    const flags = core.getInput(FLAGS);
+    const payload = createPayload();
+    if (threadId !== '') {
+        webhookUrl = `${webhookUrl}?thread_id=${threadId}`;
+    }
+    if (filename !== '' || threadName !== '' || flags !== '') {
+        const formData = new form_data_1.default();
+        if (filename !== '') {
+            formData.append('upload-file', (0, fs_1.createReadStream)(filename));
+            formData.append('payload_json', JSON.stringify(payload));
         }
-        if (filename !== '' || threadName !== '' || flags !== '') {
-            const formData = new form_data_1.default();
-            if (filename !== '') {
-                formData.append('upload-file', (0, fs_1.createReadStream)(filename));
-                formData.append('payload_json', JSON.stringify(payload));
-            }
-            if (threadName !== '') {
-                formData.append('thread_name', threadName);
-            }
-            if (flags !== '') {
-                formData.append('flags', Number(flags));
-            }
-            formData.submit(webhookUrl, function (error, response) {
-                if (error != null) {
-                    if (filename !== '') {
-                        core.error(`failed to upload file: ${error.message}`);
-                    }
-                    if (threadName !== '') {
-                        core.error(`failed to create thread: ${threadName}`);
-                    }
+        if (threadName !== '') {
+            formData.append('thread_name', threadName);
+        }
+        if (flags !== '') {
+            formData.append('flags', Number(flags));
+        }
+        formData.submit(webhookUrl, function (error, response) {
+            if (error != null) {
+                if (filename !== '') {
+                    core.error(`failed to upload file: ${error.message}`);
                 }
-                else if (filename !== '') {
-                    core.info(`successfully uploaded file with status code: ${response.statusCode}`);
+                if (threadName !== '') {
+                    core.error(`failed to create thread: ${threadName}`);
                 }
-            });
-        }
-        else {
-            const response = yield client.postJson(webhookUrl, payload);
-            yield handleResponse(response);
-        }
-    });
+            }
+            else if (filename !== '') {
+                core.info(`successfully uploaded file with status code: ${response.statusCode}`);
+            }
+        });
+    }
+    else {
+        const response = await client.postJson(webhookUrl, payload);
+        await handleResponse(response);
+    }
 }
 exports.executeWebhook = executeWebhook;
-function run() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            core.info('Running discord webhook action...');
-            yield executeWebhook();
-        }
-        catch (error) {
-            if (error instanceof Error)
-                core.setFailed(error.message);
-        }
-    });
+async function run() {
+    try {
+        core.info('Running discord webhook action...');
+        await executeWebhook();
+    }
+    catch (error) {
+        if (error instanceof Error)
+            core.setFailed(error.message);
+    }
 }
 run();
 
